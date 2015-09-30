@@ -2,6 +2,9 @@ FROM mhart/alpine-node:0.12
 
 MAINTAINER Jon Borgonia "jon@gomagames.com"
 
+# fleet version
+ENV VERSION 0.11.5
+
 # build git
 RUN apk --update add git
 
