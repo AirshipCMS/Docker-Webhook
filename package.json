@@ -1,0 +1,22 @@
+{
+  "name": "docker-webhook",
+  "version": "1.0.0",
+  "description": "Dockerfile for Docker-Webhook-Responder",
+  "main": "webhook.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AirshipCMS/docker-webhook.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/AirshipCMS/docker-webhook/issues"
+  },
+  "homepage": "https://github.com/AirshipCMS/docker-webhook#readme",
+  "dependencies": {
+    "docker-webhook": "git+https://github.com/theRemix/docker-webhook.git"
+  }
+}
