@@ -17,6 +17,7 @@
   },
   "homepage": "https://github.com/AirshipCMS/docker-webhook#readme",
   "dependencies": {
+    "bluebird": "^2.10.1",
     "docker-webhook": "git+https://github.com/theRemix/docker-webhook.git"
   }
 }

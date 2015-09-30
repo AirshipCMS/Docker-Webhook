@@ -30,8 +30,11 @@ ENV FLEETCTL_ENDPOINT 127.0.0.1:4001
 # http://yourfleet.com:8411/YOUR_SECRET_AUTH_TOKEN
 ENV AUTH_TOKEN YOUR_SECRET
 
-# node ids to reload when webhook is triggered
-ENV AIRSHIP_IDX [0]
+# service unit names (array) for fleetctl to reload when webhook is triggered
+ENV UPDATE_UNITS ['nginx@1']
+
+# repo name of docker webhook
+ENV REPO_NAME='_/_'
 
 EXPOSE 8411
 
