@@ -10,14 +10,14 @@ RUN cd /srv && npm install
 # url of fleet
 # FLEETCTL_ENDPOINT=${COREOS_PRIVATE_IPV4}
 # FLEETCTL_ENDPOINT=${COREOS_PRIVATE_IPV4}:4001
-ENV FLEETCTL_ENDPOINT
+ENV FLEETCTL_ENDPOINT=127.0.0.1:4001
 
 # secret auth token manually generated for docker webhook
 # http://yourfleet.com:8411/YOUR_SECRET_AUTH_TOKEN
-ENV AUTH_TOKEN
+ENV AUTH_TOKEN=YOUR_SECRET
 
-# node id to reload when webhook is triggered
-ENV AIRSHIP_IDX
+# node ids to reload when webhook is triggered
+ENV AIRSHIP_IDX=[0]
 
 # build fleet
 RUN apk-install curl && \
