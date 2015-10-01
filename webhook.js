@@ -33,22 +33,22 @@ webhook(function cb(json, url) {
           return promiseFromExec(
             exec('/bin/fleetctl --endpoint http://'+process.env.FLEETCTL_ENDPOINT+' stop '+unit)
           ).then(function(result){
-            process.stdout.write('Upgrade-> STOPPED unit '+ unit +' with exit code: ' + result);
+            process.stdout.write('Upgrade-> STOPPED unit '+ unit +' with exit code: ' + result + '\n');
             return promiseFromExec(
               exec('/bin/fleetctl --endpoint http://'+process.env.FLEETCTL_ENDPOINT+' start '+unit)
             );
           }).then(function(result){
-            process.stdout.write('Upgrade-> STARTED stopped unit, completed with exit code: ' + result);
+            process.stdout.write('Upgrade-> STARTED stopped unit, completed with exit code: ' + result + '\n');
           },function(err){
-            process.stderr.write('Upgrade-> error: ' + err);
+            process.stderr.write('Upgrade-> error: ' + err + '\n\n');
           });
         }, { concurrency : 1 })
       );
 
     }else{
-      process.stderr.write('got bad payload?, did nothing \n' + url + '\n' + json);
+      process.stderr.write('got bad payload?, did nothing \n' + url + '\n' + json + '\n');
     }
   }else{
-    process.stderr.write('got request, did nothing \n' + url + '\n' + json);
+    process.stderr.write('got request, did nothing \n' + url + '\n' + json + '\n');
   }
 });
