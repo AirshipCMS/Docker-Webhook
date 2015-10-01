@@ -29,12 +29,18 @@ webhook(function cb(json, url) {
       Promise.all(
         JSON.parse( process.env.UPDATE_UNITS )
         .map(function(unit){
+          // each unit runs 2 commands, stop then start
           return promiseFromExec(
-            exec('/bin/fleetctl --endpoint http://'+process.env.FLEETCTL_ENDPOINT+' ssh '+unit+' sudo systemctl restart '+unit)
+            exec('/bin/fleetctl --endpoint http://'+process.env.FLEETCTL_ENDPOINT+' stop '+unit)
           ).then(function(result){
-            process.stdout.write('Upgrade complete with exit code: ' + result);
+            process.stdout.write('Upgrade-> STOPPED unit '+ unit +' with exit code: ' + result);
+            return promiseFromExec(
+              exec('/bin/fleetctl --endpoint http://'+process.env.FLEETCTL_ENDPOINT+' start '+unit)
+            );
+          }).then(function(result){
+            process.stdout.write('Upgrade-> STARTED stopped unit, completed with exit code: ' + result);
           },function(err){
-            process.stderr.write('Upgrade error: ' + err);
+            process.stderr.write('Upgrade-> error: ' + err);
           });
         }, { concurrency : 1 })
       );
