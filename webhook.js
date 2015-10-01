@@ -5,8 +5,18 @@ var exec = require('child_process').exec;
 
 function promiseFromExec(child){
   return new Promise(function(resolve, reject){
-    child.addListener('error', reject);
-    child.addListener('exit', resolve);
+    child.stderr.pipe(process.stderr);
+    child.stdout.pipe(process.stdout);
+    child.addListener('error', function(err){
+      reject(err.message);
+    });
+    child.addListener('exit', function(code,signal){
+      if(code === 0){
+        resolve(code);
+      }else{
+        reject(code);
+      }
+    });
   });
 }
 
@@ -22,15 +32,12 @@ webhook(function cb(json, url) {
           return promiseFromExec(
             exec('/bin/fleetctl --endpoint http://'+process.env.FLEETCTL_ENDPOINT+' ssh '+unit+' sudo systemctl restart '+unit)
           ).then(function(result){
-            process.stdout.write(result);
+            process.stdout.write('Upgrade complete with exit code: ' + result);
           },function(err){
-            process.stderr.write(err);
+            process.stderr.write('Upgrade error: ' + err);
           });
-        })
-      )
-      .then(function(results){
-        process.stdout.write(results.length + ' results completed.');
-      });
+        }, { concurrency : 1 })
+      );
 
     }else{
       process.stderr.write('got bad payload?, did nothing \n' + url + '\n' + json);
