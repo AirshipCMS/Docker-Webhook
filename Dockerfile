@@ -40,4 +40,4 @@ EXPOSE 8411
 
 WORKDIR /srv
 
-CMD ["/usr/bin/node ."]
+CMD ["/usr/bin/node","."]
