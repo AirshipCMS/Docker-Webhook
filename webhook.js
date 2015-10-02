@@ -78,7 +78,7 @@ var slack = {
     slack.notify( slack.status.ERROR, null, message );
     return message;
   },
-  send : function( status, unit, message ){
+  notify : function( status, unit, message ){
 
     if( process.env.SLACK_NOTIFICATION !== undefined ){
       var color = status === "success" ? "good" : "danger";
