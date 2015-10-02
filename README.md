@@ -49,3 +49,24 @@ example webhook payload
   }
 }
 ```
+
+for slack integration, enable [*Incoming WebHooks*](https://slack.com/services/new) From slack integrations
+
+add env var `SLACK_NOTIFICATION` set to json value
+
+all json fields are required
+```
+{
+  "URL" : "slack integration url",
+  "CHANNEL" : "slack channel to post to",
+  "PRODUCT" : "name of app being deployed",
+  "RELEASE_CHANNEL" : "alpha, beta, staging, production etc."
+}
+```
+
+example
+```
+  -e SLACK_WEBHOOK='{"URL":"https://hooks.slack.com/services/YOUR/WEBHOOK/URL","CHANNEL":"#yourproduct","PRODUCT":"YourApp","RELEASE_CHANNEL":"production"}'
+```
+
+
