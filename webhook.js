@@ -56,9 +56,11 @@ webhook(function cb(json, url) {
     }
   }else{
 
-    process.stderr.write(
-      slack.error( 'got request, did nothing \n' + url + '\n' + json + '\n' )
-    );
+    // health check?
+
+    // process.stderr.write(
+    //   slack.error( 'got request, did nothing \n' + url + '\n' + json + '\n' )
+    // );
   }
 });
 
