@@ -25,18 +25,18 @@ webhook(function cb(json, url) {
   var url_auth_token = URL.parse(url).path.substr(1);
   if( url_auth_token === process.env.AUTH_TOKEN ){
     // authorized to run hook commands
-    if( json.hasOwnProperty('repository') && json.repository.repo_name === process.env.REPO_NAME ){
+    if( json.hasOwnProperty('repository') && json.repository.repo_name.indexOf(process.env.REPO_NAME) >= 0){
 
       Promise.all(
         JSON.parse( process.env.UPDATE_UNITS )
         .map(function(unit){
           // each unit runs 2 commands, stop then start
           return promiseFromExec(
-            exec('/bin/fleetctl --endpoint http://'+process.env.FLEETCTL_ENDPOINT+' stop '+unit), unit
+            exec('/bin/fleetctl --endpoint '+process.env.FLEETCTL_ENDPOINT+' stop '+unit), unit
           ).then(function(result){
             process.stdout.write('Upgrade-> STOPPED unit '+ result.unit +' with exit code: ' + result.message + '\n');
             return promiseFromExec(
-              exec('/bin/fleetctl --endpoint http://'+process.env.FLEETCTL_ENDPOINT+' start '+result.unit), result.unit
+              exec('/bin/fleetctl --endpoint '+process.env.FLEETCTL_ENDPOINT+' start '+result.unit), result.unit
             );
           }).then(function(result){
             process.stdout.write('Upgrade-> STARTED stopped unit, completed with exit code: ' + result.message + '\n');
@@ -51,7 +51,7 @@ webhook(function cb(json, url) {
     }else{
 
       process.stderr.write(
-        slack.error( 'got bad payload?, did nothing \n' + url + '\n' + json + '\n')
+        slack.error( 'got bad payload?, did nothing \n' + url + '\n' + JSON.stringify(json) + '\n')
       );
     }
   }else{
