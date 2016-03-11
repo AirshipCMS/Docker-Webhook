@@ -25,7 +25,13 @@ webhook(function cb(json, url) {
   var url_auth_token = URL.parse(url).path.substr(1);
   if( url_auth_token === process.env.AUTH_TOKEN ){
     // authorized to run hook commands
-    if( json.hasOwnProperty('repository') && json.repository.repo_name.indexOf(process.env.REPO_NAME) >= 0){
+    if( json.hasOwnProperty('repository') &&
+        json.repository.hasOwnProperty('repo_name') &&
+        json.hasOwnProperty('push_data') &&
+        json.push_data.hasOwnProperty('tag') &&
+        json.repository.repo_name === process.env.REPO_NAME &&
+        json.push_data.tag.indexOf === process.env.TAG
+      ){
 
       Promise.all(
         JSON.parse( process.env.UPDATE_UNITS )
