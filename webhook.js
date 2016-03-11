@@ -27,13 +27,14 @@ function promiseOutputFromExec(child, unit){
   return new Promise(function(resolve, reject){
     child.stderr.pipe(process.stderr);
     var data = "";
-    child.addListener('data', function(chunk){
+    child.stdout.on('data', function(chunk){
       data += chunk;
     })
     child.addListener('error', function(err){
       reject({ message : err.message, unit : unit});
     });
     child.addListener('exit', function(code,signal){
+      data = data.trim();
       if(code === 0){
         resolve({ output : data, unit : unit});
       }else{
@@ -114,8 +115,8 @@ function incrementallyUpdateUnits( units ) {
           if( !active ){
             promiseOutputFromExec(
               exec("/bin/fleetctl --endpoint "+process.env.FLEETCTL_ENDPOINT+" list-units | grep '"+result.unit+"' | awk '{print $3}'"), result.unit
-            ).then(function(result){
-              if(result.output === "active"){
+            ).then(function(statusResult){
+              if(statusResult.output === "active"){
                 active = true;
                 getVersionAndNotify( result );
                 clearInterval(checker);
