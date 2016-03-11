@@ -51,28 +51,25 @@ function getVersionAndNotify( result ) {
     var port = null;
     // static port => 808%i, api port => 389%i
     if(result.unit.indexOf('static') > 0){
-      port = "8o8"+(result.unit.split('_').pop());
+      port = "8o8"+(result.unit.split('@').pop());
     }else{
-      port = "389"+(result.unit.split('_').pop());
+      port = "389"+(result.unit.split('@').pop());
     }
-    var unit_url = "http://"+result.output.split('/')[1]+port+'/'+VERSION_ENDPOINT;
+    var unit_url = "http://"+result.output.split('/')[1]+':'+port+'/'+VERSION_ENDPOINT;
     request.get(
       {
         url : unit_url,
-        headers : {
-          "Content-Type" : "application/json"
-        }
+        json : true
       },
       function (error, response, body) {
         if (!error && response.statusCode == 200) {
-          var both_versions = JSON.parse(body);
           var versions = {};
           if(process.env.REPORT_VERSION === "api"){
-            versions.API_VERSION_CODE = both_versions.API_VERSION_CODE;
-            versions.API_VERSION_TAG = both_versions.API_VERSION_TAG;
+            versions.API_VERSION_CODE = body.API_VERSION_CODE;
+            versions.API_VERSION_TAG = body.API_VERSION_TAG;
           }else{ // "static"
-            versions.VERSION_CODE = both_versions.VERSION_CODE;
-            versions.VERSION_TAG = both_versions.VERSION_TAG;
+            versions.VERSION_CODE = body.VERSION_CODE;
+            versions.VERSION_TAG = body.VERSION_TAG;
           }
           slack.success( result.unit, versions );
           process.stdout.write( 'Updated Version : '+JSON.stringify(versions)+'\n' );
