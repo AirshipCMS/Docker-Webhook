@@ -4,6 +4,7 @@ var URL = require('url');
 var exec = require('child_process').exec;
 var request = require('request');
 var INACTIVE_TIMEOUT = 600000; // ms, 10 mins
+var VERSION_ENDPOINT = '/_version';
 
 function promiseFromExec(child, unit){
   return new Promise(function(resolve, reject){
@@ -46,12 +47,19 @@ function getVersionAndNotify( result ) {
   promiseOutputFromExec(
     exec("/bin/fleetctl --endpoint "+process.env.FLEETCTL_ENDPOINT+" list-units | grep '"+result.unit+"' | awk '{print $2}'"), result.unit
   ).then(function(result){
-    var unit_url = "http://"+result.output.split('/')[1]+process.env.CHECK_PORT_VERSION_ENDPOINT;
+    var port = null;
+    // static port => 808%i, api port => 389%i
+    if(result.unit.indexOf('static') > 0){
+      port = "8o8"+(result.unit.split('_').pop());
+    }else{
+      port = "389"+(result.unit.split('_').pop());
+    }
+    var unit_url = "http://"+result.output.split('/')[1]+port+'/'+VERSION_ENDPOINT;
     request.get(
       {
-        url : slackOpts.URL,
+        url : unit_url,
         headers : {
-          "Content-Type" : "application/json;charset=UTF-8"
+          "Content-Type" : "application/json"
         }
       },
       function (error, response, body) {
