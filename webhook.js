@@ -150,7 +150,7 @@ webhook(function cb(json, url) {
         json.hasOwnProperty('push_data') &&
         json.push_data.hasOwnProperty('tag') &&
         json.repository.repo_name === process.env.REPO_NAME &&
-        json.push_data.tag.indexOf === process.env.TAG
+        json.push_data.tag === process.env.TAG
       ){
 
       incrementallyUpdateUnits(JSON.parse( process.env.UPDATE_UNITS ));
@@ -158,7 +158,8 @@ webhook(function cb(json, url) {
     }else{
 
       process.stderr.write(
-        slack.error( 'got bad payload?, did nothing \n' + url + '\n' + JSON.stringify(json) + '\n')
+        // slack.error( 'got bad payload?, did nothing \n' + url + '\n' + JSON.stringify(json) + '\n')
+        'mismatched TAG or REPO_NAME, or got bad payload? ignoring. \n' + url + '\n' + JSON.stringify(json) + '\n'
       );
     }
   }else{
