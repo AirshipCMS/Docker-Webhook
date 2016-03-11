@@ -79,6 +79,60 @@ function getVersionAndNotify( result ) {
   });
 }
 
+/*
+ * recursively unshift each unit in [units] until none left
+ */
+function incrementallyUpdateUnits( units ) {
+  if(units.length > 0){
+    var unit = units.shift();
+    // each unit runs 2 commands, stop then start
+    return promiseFromExec(
+      exec('/bin/fleetctl --endpoint '+process.env.FLEETCTL_ENDPOINT+' stop '+unit+' && sleep 10'), unit
+    ).then(function(result){
+      process.stdout.write('Upgrade-> STOPPED unit '+ result.unit +' with exit code: ' + result.message + '\n');
+      return promiseFromExec(
+        exec('/bin/fleetctl --endpoint '+process.env.FLEETCTL_ENDPOINT+' start '+result.unit), result.unit
+      );
+    }).then(function(result){
+      process.stdout.write('Upgrade-> STARTED stopped unit, completed with exit code: ' + result.message + '\n');
+      process.stdout.write('waiting for update: ' + result.message + '\n');
+
+      var start = Date.now();
+      var now = start;
+      var active = false;
+      var checker = setInterval(function(){
+        now = Date.now();
+        if( now - start < INACTIVE_TIMEOUT ){
+          if( !active ){
+            promiseOutputFromExec(
+              exec("/bin/fleetctl --endpoint "+process.env.FLEETCTL_ENDPOINT+" list-units | grep '"+result.unit+"' | awk '{print $3}'"), result.unit
+            ).then(function(result){
+              if(result.output === "active"){
+                active = true;
+                getVersionAndNotify( result );
+                clearInterval(checker);
+                incrementallyUpdateUnits(units);
+              }
+            },function(err){
+              process.stderr.write('Upgrade-> error: ' + err.message + '\n\n');
+              slack.fail( err );
+              clearInterval(checker);
+            });
+          }
+        }else{
+          process.stderr.write('Upgrade-> timeout error: unit ' + result.unit + ' never became active\n\n');
+          clearInterval(checker);
+          incrementallyUpdateUnits(units);
+        }
+      }, 1000);
+    },function(err){
+      process.stderr.write('Upgrade-> error: ' + err.message + '\n\n');
+      slack.fail( err );
+      incrementallyUpdateUnits(units);
+    });
+  }
+}
+
 webhook(function cb(json, url) {
   var url_auth_token = URL.parse(url).path.substr(1);
   if( url_auth_token === process.env.AUTH_TOKEN ){
@@ -91,50 +145,7 @@ webhook(function cb(json, url) {
         json.push_data.tag.indexOf === process.env.TAG
       ){
 
-      Promise.all(
-        JSON.parse( process.env.UPDATE_UNITS )
-        .map(function(unit){
-          // each unit runs 2 commands, stop then start
-          return promiseFromExec(
-            exec('/bin/fleetctl --endpoint '+process.env.FLEETCTL_ENDPOINT+' stop '+unit), unit
-          ).then(function(result){
-            process.stdout.write('Upgrade-> STOPPED unit '+ result.unit +' with exit code: ' + result.message + '\n');
-            return promiseFromExec(
-              exec('/bin/fleetctl --endpoint '+process.env.FLEETCTL_ENDPOINT+' start '+result.unit), result.unit
-            );
-          }).then(function(result){
-            process.stdout.write('Upgrade-> STARTED stopped unit, completed with exit code: ' + result.message + '\n');
-            process.stdout.write('waiting for update: ' + result.message + '\n');
-
-            var start = Date.now();
-            var now = start;
-            var active = false;
-            var checker = setInterval(function(){
-              now = Date.now();
-              if( now - start < INACTIVE_TIMEOUT && !active ){
-                promiseOutputFromExec(
-                  exec("/bin/fleetctl --endpoint "+process.env.FLEETCTL_ENDPOINT+" list-units | grep '"+result.unit+"' | awk '{print $3}'"), result.unit
-                ).then(function(result){
-                  if(result.output === "active"){
-                    active = true;
-                    getVersionAndNotify( result );
-                    clearInterval(checker);
-                  }
-                },function(err){
-                  process.stderr.write('Upgrade-> error: ' + err.message + '\n\n');
-                  slack.fail( err );
-                  clearInterval(checker);
-                });
-              }else{
-                clearInterval(checker);
-              }
-            }, 1000);
-          },function(err){
-            process.stderr.write('Upgrade-> error: ' + err.message + '\n\n');
-            slack.fail( err );
-          });
-        }, { concurrency : 1 })
-      );
+      incrementallyUpdateUnits(JSON.parse( process.env.UPDATE_UNITS ));
 
     }else{
 
