@@ -3,6 +3,7 @@ var Promise = require('bluebird');
 var URL = require('url');
 var exec = require('child_process').exec;
 var request = require('request');
+var INACTIVE_TIMEOUT = 600000; // ms, 10 mins
 
 function promiseFromExec(child, unit){
   return new Promise(function(resolve, reject){
@@ -18,6 +19,63 @@ function promiseFromExec(child, unit){
         reject({ message : code, unit : unit});
       }
     });
+  });
+}
+
+function promiseOutputFromExec(child, unit){
+  return new Promise(function(resolve, reject){
+    child.stderr.pipe(process.stderr);
+    var data = "";
+    child.addListener('data', function(chunk){
+      data += chunk;
+    })
+    child.addListener('error', function(err){
+      reject({ message : err.message, unit : unit});
+    });
+    child.addListener('exit', function(code,signal){
+      if(code === 0){
+        resolve({ output : data, unit : unit});
+      }else{
+        reject({ output : data, unit : unit});
+      }
+    });
+  });
+}
+
+function getVersionAndNotify( result ) {
+  promiseOutputFromExec(
+    exec("/bin/fleetctl --endpoint "+process.env.FLEETCTL_ENDPOINT+" list-units | grep '"+result.unit+"' | awk '{print $2}'"), result.unit
+  ).then(function(result){
+    var unit_url = "http://"+result.output.split('/')[1]+process.env.CHECK_PORT_VERSION_ENDPOINT;
+    request.get(
+      {
+        url : slackOpts.URL,
+        headers : {
+          "Content-Type" : "application/json;charset=UTF-8"
+        }
+      },
+      function (error, response, body) {
+        if (!error && response.statusCode == 200) {
+          var both_versions = JSON.parse(body);
+          var versions = {};
+          if(process.env.REPORT_VERSION === "api"){
+            versions.API_VERSION_CODE = both_versions.API_VERSION_CODE;
+            versions.API_VERSION_TAG = both_versions.API_VERSION_TAG;
+          }else{ // "static"
+            versions.VERSION_CODE = both_versions.VERSION_CODE;
+            versions.VERSION_TAG = both_versions.VERSION_TAG;
+          }
+          slack.success( result.unit, versions );
+          process.stdout.write( 'Updated Version : '+JSON.stringify(versions)+'\n' );
+        }else{
+          slack.error( "Failed to get updated version : "+result.unit );
+          process.stderr.write( 'Get Updated Version : failed\n'+error );
+        }
+      }
+    );
+  },function(err){
+    process.stderr.write('GetVersion-> error: ' + err.message + '\n\n');
+    slack.fail( err );
   });
 }
 
@@ -46,7 +104,31 @@ webhook(function cb(json, url) {
             );
           }).then(function(result){
             process.stdout.write('Upgrade-> STARTED stopped unit, completed with exit code: ' + result.message + '\n');
-            slack.success( result );
+            process.stdout.write('waiting for update: ' + result.message + '\n');
+
+            var start = Date.now();
+            var now = start;
+            var active = false;
+            var checker = setInterval(function(){
+              now = Date.now();
+              if( now - start < INACTIVE_TIMEOUT && !active ){
+                promiseOutputFromExec(
+                  exec("/bin/fleetctl --endpoint "+process.env.FLEETCTL_ENDPOINT+" list-units | grep '"+result.unit+"' | awk '{print $3}'"), result.unit
+                ).then(function(result){
+                  if(result.output === "active"){
+                    active = true;
+                    getVersionAndNotify( result );
+                    clearInterval(checker);
+                  }
+                },function(err){
+                  process.stderr.write('Upgrade-> error: ' + err.message + '\n\n');
+                  slack.fail( err );
+                  clearInterval(checker);
+                });
+              }else{
+                clearInterval(checker);
+              }
+            }, 1000);
           },function(err){
             process.stderr.write('Upgrade-> error: ' + err.message + '\n\n');
             slack.fail( err );
@@ -76,8 +158,8 @@ var slack = {
     FAIL : "failed",
     ERROR : "error"
   },
-  success : function( result ){
-    slack.notify( slack.status.SUCCESS, result.unit );
+  success : function( unit, version ){
+    slack.notify( slack.status.SUCCESS, unit, version );
   },
   fail : function( result ){
     slack.notify( slack.status.FAIL, result.unit );
@@ -128,7 +210,7 @@ var slack = {
           if (!error && response.statusCode == 200) {
             process.stdout.write( 'Slack Notification : success\n' );
           }else{
-            process.stderr.write( 'Slack Notification : failed\n' );
+            process.stderr.write( 'Slack Notification : failed\n'+error );
           }
         }
       );
