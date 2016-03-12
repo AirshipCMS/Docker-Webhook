@@ -51,11 +51,11 @@ function getVersionAndNotify( result ) {
     var port = null;
     // static port => 808%i, api port => 389%i
     if(result.unit.indexOf('static') > 0){
-      port = "8o8"+(result.unit.split('@').pop());
+      port = "808"+(result.unit.split('@').pop());
     }else{
       port = "389"+(result.unit.split('@').pop());
     }
-    var unit_url = "http://"+result.output.split('/')[1]+':'+port+'/'+VERSION_ENDPOINT;
+    var unit_url = "http://"+result.output.split('/')[1]+':'+port+VERSION_ENDPOINT;
     request.get(
       {
         url : unit_url,
