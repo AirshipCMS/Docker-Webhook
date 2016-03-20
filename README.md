@@ -10,6 +10,7 @@ docker run \
   -e AUTH_TOKEN=yoursecretauthtokensetindockerwebhookurl \
   -e UPDATE_UNITS=['nginx@1','nginx@2'] \
   -e REPO_NAME='_/nginx' \
+  -e TAG='production' \
   -p 8411:8411 \
   airshipcms/docker-webhook
 ```
