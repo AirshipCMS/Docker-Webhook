@@ -1,0 +1,4 @@
+{{ $watchUnits := gets( getenv "WATCH_UNITS")) }}
+[
+{{ join $watchUnits, "," }}
+]

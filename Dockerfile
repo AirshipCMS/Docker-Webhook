@@ -36,8 +36,15 @@ ENV UPDATE_UNITS ['nginx@1']
 # repo name of docker webhook
 ENV REPO_NAME='_/_'
 
+# install confd and watch script
+ADD bin/* /usr/local/bin/
+RUN chmod +x /usr/local/bin/*
+
+# add confd templates
+ADD confd /etc/confd
+
 EXPOSE 8411
 
 WORKDIR /srv
 
-CMD ["/usr/bin/node","."]
+CMD ["/usr/local/bin/confd-watch"]
