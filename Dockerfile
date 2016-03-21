@@ -30,8 +30,8 @@ ENV FLEETCTL_ENDPOINT 127.0.0.1:4001
 # http://yourfleet.com:8411/YOUR_SECRET_AUTH_TOKEN
 ENV AUTH_TOKEN YOUR_SECRET
 
-# service unit names (array) for fleetctl to reload when webhook is triggered
-ENV UPDATE_UNITS ['nginx@1']
+# etcd path to watch for fleetctl to reload when webhook is triggered
+ENV WATCH_UNITS
 
 # repo name of docker webhook
 ENV REPO_NAME='_/_'
@@ -43,8 +43,12 @@ RUN chmod +x /usr/local/bin/*
 # add confd templates
 ADD confd /etc/confd
 
+ADD docker-entrypoint.sh /
+
 EXPOSE 8411
 
 WORKDIR /srv
+
+ENTRYPOINT ["/bin/sh","/docker-entrypoint.sh"]
 
 CMD ["/usr/local/bin/confd-watch"]
