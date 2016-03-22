@@ -12,6 +12,7 @@ ADD webhook.js /srv/index.js
 ADD package.json /srv/package.json
 
 RUN cd /srv && npm install
+RUN npm -g install forever
 
 # build fleet
 RUN apk add --update curl && \

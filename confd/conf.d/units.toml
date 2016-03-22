@@ -17,5 +17,5 @@ mode = "0644"
 
 # These are the commands that will be used to check whether the rendered config is
 # valid and to reload the actual service once the new config is in place
-check_cmd = "/bin/bash -c 'exit 0'"
-reload_cmd = "killall node; node /srv"
+check_cmd = "/bin/sh -c 'exit 0'"
+reload_cmd = "forever restartall"

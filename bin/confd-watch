@@ -21,4 +21,4 @@ echo "[docker-webhook] confd is now monitoring etcd for changes..."
 
 # Start the Nginx service using the generated config
 echo "[docker-webhook] starting webhook listener service..."
-node /srv
+forever /srv
