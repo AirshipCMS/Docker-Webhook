@@ -7,7 +7,7 @@ var INACTIVE_TIMEOUT = 600000; // ms, 10 mins
 var VERSION_ENDPOINT = '/_version';
 
 function etcdPathToFleetUnit(path){
-  return s.replace("/airship/app/","airship@").replace("/airship/nginx/http/","nginx@");
+  return path.replace("/airship/app/","airship@").replace("/airship/nginx/http/","nginx@");
 }
 
 function promiseFromExec(child, unit){
