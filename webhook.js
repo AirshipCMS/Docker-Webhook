@@ -2,8 +2,10 @@ var webhook = require('docker-webhook');
 var Promise = require('bluebird');
 var URL = require('url');
 var exec = require('child_process').exec;
+var fs = require('fs');
 var request = require('request');
 var INACTIVE_TIMEOUT = 600000; // ms, 10 mins
+var DELAY_AFTER_ACTIVE = 30000; // ms, 30 seconds
 var VERSION_ENDPOINT = '/_version';
 
 function etcdPathToFleetUnit(path){
@@ -48,6 +50,8 @@ function promiseOutputFromExec(child, unit){
   });
 }
 
+// process.env.REPORT_VERSION==="api"||"static"
+
 function getVersionAndNotify( result ) {
   promiseOutputFromExec(
     exec("/bin/fleetctl --endpoint "+process.env.FLEETCTL_ENDPOINT+" list-units | grep '"+result.unit+"' | awk '{print $2}'"), result.unit
@@ -59,24 +63,24 @@ function getVersionAndNotify( result ) {
     }else{
       port = "389"+(result.unit.split('@').pop());
     }
-    var unit_url = "http://"+result.output.split('/')[1]+':'+port+VERSION_ENDPOINT;
+
+    var unit_url = URL.parse("http://"+result.output.split('/')[1]+':'+port+VERSION_ENDPOINT);
     request.get(
       {
         url : unit_url,
-        json : true
+        json : true,
+        headers : {
+          "Content-Type" : "application/json"
+        }
       },
       function (error, response, body) {
         if (!error && response.statusCode == 200) {
-          var versions = {};
-          if(process.env.REPORT_VERSION === "api"){
-            versions.API_VERSION_CODE = body.API_VERSION_CODE;
-            versions.API_VERSION_TAG = body.API_VERSION_TAG;
-          }else{ // "static"
-            versions.VERSION_CODE = body.VERSION_CODE;
-            versions.VERSION_TAG = body.VERSION_TAG;
-          }
-          slack.success( result.unit, versions );
-          process.stdout.write( 'Updated Version : '+JSON.stringify(versions)+'\n' );
+          var fields = [
+            { title : "API Version"+(process.env.REPORT_VERSION==="api" ? " [updated]":""), value : body.API_VERSION_TAG + " " + body.API_VERSION_CODE, short : true },
+            { title : "Admin Version"+(process.env.REPORT_VERSION!=="api" ? " [updated]":""), value : body.VERSION_TAG + " " + body.VERSION_CODE, short : true }
+          ];
+          slack.success( result.unit, fields );
+          process.stdout.write( 'Updated Version : '+JSON.stringify(body)+'\n' );
         }else{
           slack.error( "Failed to get updated version : "+result.unit );
           process.stderr.write( 'Get Updated Version : failed\n'+error );
@@ -117,11 +121,14 @@ function incrementallyUpdateUnits( units ) {
             promiseOutputFromExec(
               exec("/bin/fleetctl --endpoint "+process.env.FLEETCTL_ENDPOINT+" list-units | grep '"+result.unit+"' | awk '{print $3}'"), result.unit
             ).then(function(statusResult){
+
               if(statusResult.output === "active"){
                 active = true;
-                getVersionAndNotify( result );
                 clearInterval(checker);
                 incrementallyUpdateUnits(units);
+                setTimeout(function(){
+                  getVersionAndNotify( result );
+                }, DELAY_AFTER_ACTIVE)
               }
             },function(err){
               process.stderr.write('Upgrade-> error: ' + err.message + '\n\n');
@@ -156,13 +163,14 @@ webhook(function cb(json, url) {
       ){
 
         try{
-          var unitsJson = JSON.parse( fs.readFileSync('./units.json') );
-          incrementallyUpdateUnits( unitsJson.slice(1).map(etcdPathToFleetUnit) );
+          var unitsJson = JSON.parse( fs.readFileSync('/srv/units.json') );
         }catch(e){
           process.stderr.write(
-            'failed to read and parse ./units.json\n'
+            'failed to read and parse /srv/units.json\n'
           );
         }
+
+        incrementallyUpdateUnits( unitsJson.slice(1).map(etcdPathToFleetUnit) );
 
     }else{
 
@@ -187,8 +195,8 @@ var slack = {
     FAIL : "failed",
     ERROR : "error"
   },
-  success : function( unit, version ){
-    slack.notify( slack.status.SUCCESS, unit, version );
+  success : function( unit, fields ){
+    slack.notify( slack.status.SUCCESS, unit, null, fields );
   },
   fail : function( result ){
     slack.notify( slack.status.FAIL, result.unit );
@@ -197,11 +205,15 @@ var slack = {
     slack.notify( slack.status.ERROR, null, message );
     return message;
   },
-  notify : function( status, unit, message ){
+  notify : function( status, unit, message, appendFields ){
 
     if( process.env.SLACK_NOTIFICATION !== undefined ){
       var color = status === "success" ? "good" : "danger";
       var slackOpts = JSON.parse( process.env.SLACK_NOTIFICATION );
+      var fields = [{ title : "Fleet Unit", value : unit, short : false }];
+      if(appendFields){
+        fields = fields.concat(appendFields);
+      }
       request.post(
         slackOpts.URL,
         {
@@ -217,19 +229,7 @@ var slack = {
                   title : slackOpts.PRODUCT + " [" + slackOpts.RELEASE_CHANNEL + "] deployment " + status,
                   title_link : "https://hub.docker.com/r" + process.env.REPO_NAME + "/builds/",
                   text : message,
-                  fields :
-                    [
-                    /*{
-                      title : "Version",
-                      value : "v.xxx",
-                      short : true
-                      },*/
-                    {
-                      title : "Fleet Unit",
-                      value : unit,
-                      short : true
-                    }
-                  ]
+                  fields : fields
                 }
               ]
             })
