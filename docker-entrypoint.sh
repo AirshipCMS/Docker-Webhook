@@ -1,3 +1,3 @@
 #!/bin/sh
 
-sed -i "s,\${WATCH_UNITS},${WATCH_UNITS}," /etc/confd/conf.d/units.toml
+sed -i "s,\${WATCH_ETCD},${WATCH_ETCD}," /etc/confd/conf.d/units.toml

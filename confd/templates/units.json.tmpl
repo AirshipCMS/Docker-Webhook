@@ -1,4 +1,1 @@
-{{ $watchUnits := gets( getenv "WATCH_UNITS")) }}
-[
-{{ join $watchUnits, "," }}
-]
+{{ $watchUnits := getenv "ETCD_UNITS" }}[null{{ range gets $watchUnits }},"{{ .Key }}"{{ end }}]

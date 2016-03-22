@@ -31,7 +31,12 @@ ENV FLEETCTL_ENDPOINT 127.0.0.1:4001
 ENV AUTH_TOKEN YOUR_SECRET
 
 # etcd path to watch for fleetctl to reload when webhook is triggered
-ENV WATCH_UNITS CHOOSE_ETCD_PATH
+# example: /nginx
+ENV WATCH_ETCD CHOOSE_ETCD_PATH
+
+# etcd path to watch for fleetctl to reload when webhook is triggered
+# example: /nginx/*
+ENV ETCD_UNITS CHOOSE_ETCD_UNITS
 
 # repo name of docker webhook
 ENV REPO_NAME='_/_'
