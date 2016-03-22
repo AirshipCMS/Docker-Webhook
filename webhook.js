@@ -6,6 +6,7 @@ var fs = require('fs');
 var request = require('request');
 var INACTIVE_TIMEOUT = 600000; // ms, 10 mins
 var DELAY_AFTER_ACTIVE = 30000; // ms, 30 seconds
+var ATTEMPTS_AFTER_ACTIVE = 5; // attempts to ping server, with between DELAY_AFTER_ACTIVE
 var VERSION_ENDPOINT = '/_version';
 
 function etcdPathToFleetUnit(path){
@@ -52,7 +53,7 @@ function promiseOutputFromExec(child, unit){
 
 // process.env.REPORT_VERSION==="api"||"static"
 
-function getVersionAndNotify( result ) {
+function getVersionAndNotify( result, attempts ) {
   promiseOutputFromExec(
     exec("/bin/fleetctl --endpoint "+process.env.FLEETCTL_ENDPOINT+" list-units | grep '"+result.unit+"' | awk '{print $2}'"), result.unit
   ).then(function(result){
@@ -82,8 +83,13 @@ function getVersionAndNotify( result ) {
           slack.success( result.unit, fields );
           process.stdout.write( 'Updated Version : '+JSON.stringify(body)+'\n' );
         }else{
-          slack.error( "Failed to get updated version : "+result.unit );
-          process.stderr.write( 'Get Updated Version : failed\n'+error );
+          if( attempts < ATTEMPTS_AFTER_ACTIVE ){
+            process.stdout.write( 'Get Updated Version : failed attempt ' + attempts + ' of ' + ATTEMPTS_AFTER_ACTIVE + '\n' );
+            getVersionAndNotify( result, attempts + 1 );
+          }else{
+            slack.error( "Failed to get updated version : "+result.unit );
+            process.stderr.write( 'Get Updated Version : failed after ' + ATTEMPTS_AFTER_ACTIVE + ' attempts\n'+error );
+          }
         }
       }
     );
@@ -127,7 +133,7 @@ function incrementallyUpdateUnits( units ) {
                 clearInterval(checker);
                 incrementallyUpdateUnits(units);
                 setTimeout(function(){
-                  getVersionAndNotify( result );
+                  getVersionAndNotify( result, 1 );
                 }, DELAY_AFTER_ACTIVE)
               }
             },function(err){
