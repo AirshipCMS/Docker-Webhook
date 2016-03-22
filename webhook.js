@@ -6,6 +6,10 @@ var request = require('request');
 var INACTIVE_TIMEOUT = 600000; // ms, 10 mins
 var VERSION_ENDPOINT = '/_version';
 
+function etcdPathToFleetUnit(path){
+  return s.replace("/airship/app/","airship@").replace("/airship/nginx/http/","nginx@");
+}
+
 function promiseFromExec(child, unit){
   return new Promise(function(resolve, reject){
     child.stderr.pipe(process.stderr);
@@ -50,7 +54,7 @@ function getVersionAndNotify( result ) {
   ).then(function(result){
     var port = null;
     // static port => 808%i, api port => 389%i
-    if(result.unit.indexOf('static') > 0){
+    if(result.unit.indexOf('nginx') >= 0){
       port = "808"+(result.unit.split('@').pop());
     }else{
       port = "389"+(result.unit.split('@').pop());
@@ -151,7 +155,7 @@ webhook(function cb(json, url) {
         json.push_data.tag === process.env.TAG
       ){
 
-      incrementallyUpdateUnits(JSON.parse( require('./units') ).slice(1));
+      incrementallyUpdateUnits(JSON.parse( require('./units') ).slice(1).map(etcdPathToFleetUnit));
 
     }else{
 
