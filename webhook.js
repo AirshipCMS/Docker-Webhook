@@ -155,7 +155,14 @@ webhook(function cb(json, url) {
         json.push_data.tag === process.env.TAG
       ){
 
-      incrementallyUpdateUnits( require('./units').slice(1).map(etcdPathToFleetUnit) );
+        try{
+          var unitsJson = JSON.parse( fs.readFileSync('./units.json') );
+          incrementallyUpdateUnits( unitsJson.slice(1).map(etcdPathToFleetUnit) );
+        }catch(e){
+          process.stderr.write(
+            'failed to read and parse ./units.json\n'
+          );
+        }
 
     }else{
 
