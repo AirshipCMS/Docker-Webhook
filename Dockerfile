@@ -57,4 +57,4 @@ WORKDIR /srv
 
 ENTRYPOINT ["/bin/sh","/docker-entrypoint.sh"]
 
-CMD ["/usr/local/bin/confd-watch"]
+CMD ["/bin/sh","/usr/local/bin/confd-watch"]
