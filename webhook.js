@@ -151,7 +151,7 @@ webhook(function cb(json, url) {
         json.push_data.tag === process.env.TAG
       ){
 
-      incrementallyUpdateUnits(JSON.parse( process.env.UPDATE_UNITS ));
+      incrementallyUpdateUnits(JSON.parse( require('./units') ).slice(1));
 
     }else{
 
