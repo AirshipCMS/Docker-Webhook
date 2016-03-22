@@ -85,7 +85,9 @@ function getVersionAndNotify( result, attempts ) {
         }else{
           if( attempts < ATTEMPTS_AFTER_ACTIVE ){
             process.stdout.write( 'Get Updated Version : failed attempt ' + attempts + ' of ' + ATTEMPTS_AFTER_ACTIVE + '\n' );
-            getVersionAndNotify( result, attempts + 1 );
+            setTimeout(function(){
+              getVersionAndNotify( result, attempts + 1 );
+            }, DELAY_AFTER_ACTIVE)
           }else{
             slack.error( "Failed to get updated version : "+result.unit );
             process.stderr.write( 'Get Updated Version : failed after ' + ATTEMPTS_AFTER_ACTIVE + ' attempts\n'+error );
@@ -226,7 +228,7 @@ var slack = {
           form : {
             payload : JSON.stringify({
               channel : slackOpts.CHANNEL,
-              username : slackOpts.PRODUCT + " "+slackOpts.RELEASE_CHANNEL+" Docker Auto-Deploy Webhook",
+              username : slackOpts.PRODUCT + " "+slackOpts.RELEASE_CHANNEL+" Docker Auto-Deploy",
               attachments :
                 [
                 {
