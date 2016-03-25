@@ -32,6 +32,10 @@ RUN apk add --update curl && \
 # FLEETCTL_ENDPOINT=${COREOS_PRIVATE_IPV4}:4001
 ENV FLEETCTL_ENDPOINT 127.0.0.1:4001
 
+ENV ETCD_PORT 2379
+
+ENV HOST_IP 0.0.0.0
+
 # secret auth token manually generated for docker webhook
 # http://yourfleet.com:8411/YOUR_SECRET_AUTH_TOKEN
 ENV AUTH_TOKEN YOUR_SECRET
@@ -48,6 +52,7 @@ ENV ETCD_UNITS CHOOSE_ETCD_UNITS
 ENV REPO_NAME='_/_'
 
 # install confd and watch script
+ADD https://github.com/kelseyhightower/confd/releases/download/v0.11.0/confd-0.11.0-linux-amd64 /usr/local/bin/
 ADD bin/* /usr/local/bin/
 RUN chmod +x /usr/local/bin/*
 
