@@ -52,7 +52,7 @@ ENV ETCD_UNITS CHOOSE_ETCD_UNITS
 ENV REPO_NAME='_/_'
 
 # install confd and watch script
-ADD https://github.com/kelseyhightower/confd/releases/download/v0.11.0/confd-0.11.0-linux-amd64 /usr/local/bin/
+ADD https://github.com/kelseyhightower/confd/releases/download/v0.11.0/confd-0.11.0-linux-amd64 /usr/local/bin/confd
 ADD bin/* /usr/local/bin/
 RUN chmod +x /usr/local/bin/*
 
