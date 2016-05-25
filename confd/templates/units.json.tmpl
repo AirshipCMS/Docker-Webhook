@@ -3,15 +3,14 @@
   null
   {{ range gets $watchUnits }}
   {{ $unitData := json .Value }}
-  {{ $version := json $unitData.version }}
   ,{
     "path" : "{{ .Key }}",
     "unit" : "{{ $unitData.unit }}",
     "version" : {
-      "API_VERSION_CODE":"{{ $version.API_VERSION_CODE }}",
-      "VERSION_CODE":"{{ $version.VERSION_CODE }}",
-      "VERSION_TAG":"{{ $version.VERSION_TAG }}",
-      "API_VERSION_TAG":"{{ $version.API_VERSION_TAG }}"
+      "API_VERSION_CODE":"{{ $unitData.version.API_VERSION_CODE }}",
+      "VERSION_CODE":"{{ $unitData.version.VERSION_CODE }}",
+      "VERSION_TAG":"{{ $unitData.version.VERSION_TAG }}",
+      "API_VERSION_TAG":"{{ $unitData.version.API_VERSION_TAG }}"
     },
     "type" : "{{ $unitData.type }}",
     "host" : "{{ $unitData.host }}",
