@@ -95,16 +95,13 @@ function getVersionTEST(){
  * if http, (airship || nginx)
  *   get version from [ipv4_addr]:[port]/_version
  * if drone
- *   get version from docker exec [port] cat VERSION.json
- *   `fleetctl ssh drone@1 docker exec drone_1 cat VERSION.json`
+ *   just wait 15 (arbitrary) seconds, and get the version from etcd
  */
 function getVersion( unit, attempts ) {
   if ( TEST ) {
     return getVersionTEST();
   } else if ( unit.type === "drone" ) {
-    return promiseOutputFromExec(
-      fleetctl(`ssh ${unit.unit} docker exec ${unit.port} cat ${VERSION_FILENAME}`)
-    );
+    return new Promise((resolve) => setTimeout(() => resolve(unit.version), 15000));
   } else { // "api" or "static"
     return new Promise((resolve, reject) => {
       var unit_url = URL.parse(`http://${unit.ipv4_addr}:${unit.port}${VERSION_ENDPOINT}`);
