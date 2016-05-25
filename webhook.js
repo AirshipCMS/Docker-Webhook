@@ -95,13 +95,13 @@ function getVersionTEST(){
  * if http, (airship || nginx)
  *   get version from [ipv4_addr]:[port]/_version
  * if drone
- *   just wait 15 (arbitrary) seconds, and get the version from etcd
+ *   just get the version from etcd
  */
 function getVersion( unit, attempts ) {
   if ( TEST ) {
     return getVersionTEST();
   } else if ( unit.type === "drone" ) {
-    return new Promise((resolve) => setTimeout(() => resolve(unit.version), 15000));
+    return new Promise((resolve) => resolve(unit.version));
   } else { // "api" or "static"
     return new Promise((resolve, reject) => {
       var unit_url = URL.parse(`http://${unit.ipv4_addr}:${unit.port}${VERSION_ENDPOINT}`);
