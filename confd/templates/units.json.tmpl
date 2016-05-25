@@ -3,10 +3,11 @@
   null
   {{ range gets $watchUnits }}
   {{ $unitData := json .Value }}
+  {{ $version := json $unitData.version }}
   ,{
     "path" : "{{ .Key }}",
     "unit" : "{{ $unitData.unit }}",
-    "version" : {{ $unitData.version }},
+    "version" : {{ $version }},
     "type" : "{{ $unitData.type }}",
     "host" : "{{ $unitData.host }}",
     "ipv4_addr" : "{{ $unitData.ipv4_addr }}",
