@@ -10,7 +10,13 @@ const INACTIVE_TIMEOUT = 600000; // ms, 10 mins
 const DELAY_AFTER_ACTIVE = 30000; // ms, 30 seconds
 const ATTEMPTS_AFTER_ACTIVE = 5; // attempts to ping server, with between DELAY_AFTER_ACTIVE
 const VERSION_ENDPOINT = '/_version';
-const UNITS_CONFIG = process.env.UNITS_CONFIG_PATH || '/srv/units.json';
+const {
+  AUTH_TOKEN,
+  SLACK_NOTIFICATION,
+  REPO_NAME,
+  TAG,
+  UNITS_CONFIG_PATH = '/srv/units.json',
+} = process.env;
 
 function incrementallyUpdateUnits( units ){
   console.log(units);
@@ -22,18 +28,18 @@ function etcdPathToFleetUnit(path){
 
 webhook(function cb(json, url) {
   var url_auth_token = URL.parse(url).path.substr(1);
-  if( url_auth_token === process.env.AUTH_TOKEN ){
+  if( url_auth_token === AUTH_TOKEN ){
     // authorized to run hook commands
     if( json.hasOwnProperty('repository') &&
         json.repository.hasOwnProperty('repo_name') &&
         json.hasOwnProperty('push_data') &&
         json.push_data.hasOwnProperty('tag') &&
-        json.repository.repo_name === process.env.REPO_NAME &&
-        json.push_data.tag === process.env.TAG
+        json.repository.repo_name === REPO_NAME &&
+        json.push_data.tag === TAG
       ){
 
         try{
-          var unitsJson = JSON.parse( fs.readFileSync(UNITS_CONFIG) );
+          var unitsJson = JSON.parse( fs.readFileSync(UNITS_CONFIG_PATH) );
           incrementallyUpdateUnits( unitsJson.slice(1).map(etcdPathToFleetUnit) );
 
         }catch(e){
@@ -77,9 +83,9 @@ var slack = {
   },
   notify : function( status, unit, message, appendFields ){
 
-    if( process.env.SLACK_NOTIFICATION !== undefined ){
+    if( SLACK_NOTIFICATION !== undefined ){
       var color = status === "success" ? "good" : "danger";
-      var slackOpts = JSON.parse( process.env.SLACK_NOTIFICATION );
+      var slackOpts = JSON.parse( SLACK_NOTIFICATION );
       var fields = [{ title : "Fleet Unit", value : unit, short : false }];
       if(appendFields){
         fields = fields.concat(appendFields);
@@ -97,7 +103,7 @@ var slack = {
                   fallback : message || "Deployment to " + unit + " : " + status,
                   color : color,
                   title : slackOpts.PRODUCT + " [" + slackOpts.RELEASE_CHANNEL + "] deployment " + status,
-                  title_link : "https://hub.docker.com/r" + process.env.REPO_NAME + "/builds/",
+                  title_link : "https://hub.docker.com/r" + REPO_NAME + "/builds/",
                   text : message,
                   fields : fields
                 }

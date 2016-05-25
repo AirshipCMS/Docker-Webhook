@@ -4,6 +4,10 @@ Dockerfile for container that responds to docker webhook requests
 ## for development
 
 ```
+env $(cat .env | xargs) nodemon --harmony-destructuring webhook
+```
+
+```
 curl -d "$(cat .test-payload.json)" -X POST -H "Content-Type: application/json" http://localhost:8411/TEST
 ```
 
