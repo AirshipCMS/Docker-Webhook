@@ -11,19 +11,143 @@ const DELAY_AFTER_ACTIVE = 30000; // ms, 30 seconds
 const ATTEMPTS_AFTER_ACTIVE = 5; // attempts to ping server, with between DELAY_AFTER_ACTIVE
 const VERSION_ENDPOINT = '/_version';
 const {
+  TEST = false,
   AUTH_TOKEN,
+  FLEETCTL_ENDPOINT,
   SLACK_NOTIFICATION,
   REPO_NAME,
   TAG,
   UNITS_CONFIG_PATH = '/srv/units.json',
 } = process.env;
+const FLEETCTL_CMD = `/bin/fleetctl --endpoint ${FLEETCTL_ENDPOINT}`;
+const queue = [];
+let is_updating = false;
 
-function incrementallyUpdateUnits( units ){
-  console.log(units);
+function fleetctl( cmd ){
+  return exec(
+    TEST ?
+      `/bin/echo fleetctl ${cmd}` :
+      `${FLEETCTL_CMD} ${cmd}`
+  );
+}
+
+function promiseFromExec(child, unit){
+  return new Promise(function(resolve, reject){
+    child.stderr.pipe(process.stderr);
+    child.stdout.pipe(process.stdout);
+    child.addListener('error', function(err){
+      reject({ message : err.message, unit : unit});
+    });
+    child.addListener('exit', function(code,signal){
+      if(code === 0){
+        resolve({ message : code, unit : unit});
+      }else{
+        reject({ message : code, unit : unit});
+      }
+    });
+  });
 }
 
 function etcdPathToFleetUnit(path){
   return path.replace("/airship/drone/","drone@").replace("/airship/app/","airship@").replace("/airship/nginx/http/","nginx@");
+}
+
+/**
+ *
+ * for each unit defined in units : ['airship@1','airship@2','drone@1','drone@2']
+ *   update each one, recursively shifting
+ *   on completion of each unit,
+ *   if queue.length is > 0
+ *     start all over, performUpdate()
+ * when this finishes, unset is_updating flag
+ */
+function incrementallyUpdateUnits( units ){
+  if(units.length > 0){
+    var unit = units.shift();
+
+    // each unit runs 2 commands, stop then start
+    return promiseFromExec(
+      fleetctl(`stop ${unit} && sleep 10`), unit
+    ).then(function(result){
+      process.stdout.write('Upgrade-> STOPPED unit '+ result.unit +' with exit code: ' + result.message + '\n');
+      return promiseFromExec(
+        fleetctl(`start ${result.unit}`), result.unit
+      );
+    }).then(function(result){
+      process.stdout.write('Upgrade-> STARTED stopped unit, completed with exit code: ' + result.message + '\n');
+      process.stdout.write('waiting for update: ' + result.message + '\n');
+
+
+
+
+      setTimeout(()=> {
+        if(queue.length > 0){
+          process.stdout.write(`Update chain interrupted, ${queue.length} new requests in queue, starting over.\n`);
+          performUpdate();
+        } else {
+          process.stdout.write(`Update chain continuing.\n`);
+          unitUpdated(units);
+        }
+      }, 1000);
+
+    },function(err){
+      process.stderr.write('Upgrade-> error: ' + err.message + '\n\n');
+      slack.fail( err );
+      unitUpdated(units);
+    });
+
+  } else { // done
+    is_updating = false;
+    if(queue.length > 0){
+      performUpdate();
+    }
+  }
+}
+
+function unitUpdated( units ){
+  if(queue.length > 0){
+    performUpdate(); // start over
+  } else {
+    incrementallyUpdateUnits(units); // continue
+  }
+}
+
+/**
+ * drain queue
+ * enable is_updating flag
+ * start from first unit in line
+ */
+function performUpdate(){
+  if( queue.length > 0 ){
+    process.stdout.write(`Draining queue: ${queue}\n`);
+    queue.splice(0);
+  } else {
+    process.stdout.write(`Queue is empty\n`);
+  }
+
+  is_updating = true;
+
+  try{
+    let unitsJson = JSON.parse( fs.readFileSync(UNITS_CONFIG_PATH) );
+    incrementallyUpdateUnits( unitsJson.filter(u => u !== null).map(etcdPathToFleetUnit) );
+  }catch(e){
+    process.stderr.write(
+      `failed to read and parse ${UNITS_CONFIG_PATH}\nDID NOT PERFORM UPDATE!!!\n`
+    );
+    console.error(e);
+  }
+}
+
+/**
+ * if is_updating, add to queue
+ * else perform update
+ */
+function requestUpdate(){
+  if( is_updating ){
+    queue.push(new Date());
+  } else {
+    performUpdate();
+  }
 }
 
 webhook(function cb(json, url) {
@@ -36,17 +160,9 @@ webhook(function cb(json, url) {
         json.push_data.hasOwnProperty('tag') &&
         json.repository.repo_name === REPO_NAME &&
         json.push_data.tag === TAG
-      ){
+    ){
 
-        try{
-          var unitsJson = JSON.parse( fs.readFileSync(UNITS_CONFIG_PATH) );
-          incrementallyUpdateUnits( unitsJson.slice(1).map(etcdPathToFleetUnit) );
-
-        }catch(e){
-          process.stderr.write(
-            `failed to read and parse ${UNITS_CONFIG}\n`
-          );
-        }
+      requestUpdate();
 
     }else{
 
