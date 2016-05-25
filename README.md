@@ -1,8 +1,13 @@
 # docker-webhook
 Dockerfile for container that responds to docker webhook requests
 
+## for development
 
-usage:
+```
+curl -d "$(cat .test-payload.json)" -X POST -H "Content-Type: application/json" http://localhost:8411/TEST
+```
+
+## usage
 
 ```
 docker run \

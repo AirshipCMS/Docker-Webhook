@@ -1,161 +1,23 @@
-var webhook = require('docker-webhook');
-var Promise = require('bluebird');
-var URL = require('url');
-var exec = require('child_process').exec;
-var fs = require('fs');
-var request = require('request');
-var INACTIVE_TIMEOUT = 600000; // ms, 10 mins
-var DELAY_AFTER_ACTIVE = 30000; // ms, 30 seconds
-var ATTEMPTS_AFTER_ACTIVE = 5; // attempts to ping server, with between DELAY_AFTER_ACTIVE
-var VERSION_ENDPOINT = '/_version';
+'use strict';
+
+const webhook = require('docker-webhook');
+const Promise = require('bluebird');
+const URL = require('url');
+const exec = require('child_process').exec;
+const fs = require('fs');
+const request = require('request');
+const INACTIVE_TIMEOUT = 600000; // ms, 10 mins
+const DELAY_AFTER_ACTIVE = 30000; // ms, 30 seconds
+const ATTEMPTS_AFTER_ACTIVE = 5; // attempts to ping server, with between DELAY_AFTER_ACTIVE
+const VERSION_ENDPOINT = '/_version';
+const UNITS_CONFIG = process.env.UNITS_CONFIG_PATH || '/srv/units.json';
+
+function incrementallyUpdateUnits( units ){
+  console.log(units);
+}
 
 function etcdPathToFleetUnit(path){
-  return path.replace("/airship/app/","airship@").replace("/airship/nginx/http/","nginx@");
-}
-
-function promiseFromExec(child, unit){
-  return new Promise(function(resolve, reject){
-    child.stderr.pipe(process.stderr);
-    child.stdout.pipe(process.stdout);
-    child.addListener('error', function(err){
-      reject({ message : err.message, unit : unit});
-    });
-    child.addListener('exit', function(code,signal){
-      if(code === 0){
-        resolve({ message : code, unit : unit});
-      }else{
-        reject({ message : code, unit : unit});
-      }
-    });
-  });
-}
-
-function promiseOutputFromExec(child, unit){
-  return new Promise(function(resolve, reject){
-    child.stderr.pipe(process.stderr);
-    var data = "";
-    child.stdout.on('data', function(chunk){
-      data += chunk;
-    })
-    child.addListener('error', function(err){
-      reject({ message : err.message, unit : unit});
-    });
-    child.addListener('exit', function(code,signal){
-      data = data.trim();
-      if(code === 0){
-        resolve({ output : data, unit : unit});
-      }else{
-        reject({ output : data, unit : unit});
-      }
-    });
-  });
-}
-
-// process.env.REPORT_VERSION==="api"||"static"
-
-function getVersionAndNotify( result, attempts ) {
-  promiseOutputFromExec(
-    exec("/bin/fleetctl --endpoint "+process.env.FLEETCTL_ENDPOINT+" list-units | grep '"+result.unit+"' | awk '{print $2}'"), result.unit
-  ).then(function(result){
-    var port = null;
-    // static port => 808%i, api port => 389%i
-    if(result.unit.indexOf('nginx') >= 0){
-      port = "808"+(result.unit.split('@').pop());
-    }else{
-      port = "389"+(result.unit.split('@').pop());
-    }
-
-    var unit_url = URL.parse("http://"+result.output.split('/')[1]+':'+port+VERSION_ENDPOINT);
-    request.get(
-      {
-        url : unit_url,
-        json : true,
-        headers : {
-          "Content-Type" : "application/json"
-        }
-      },
-      function (error, response, body) {
-        if (!error && response.statusCode == 200) {
-          var fields = [
-            { title : "API Version"+(process.env.REPORT_VERSION==="api" ? " [updated]":""), value : body.API_VERSION_TAG + " " + body.API_VERSION_CODE, short : true },
-            { title : "Admin Version"+(process.env.REPORT_VERSION!=="api" ? " [updated]":""), value : body.VERSION_TAG + " " + body.VERSION_CODE, short : true }
-          ];
-          slack.success( result.unit, fields );
-          process.stdout.write( 'Updated Version : '+JSON.stringify(body)+'\n' );
-        }else{
-          if( attempts < ATTEMPTS_AFTER_ACTIVE ){
-            process.stdout.write( 'Get Updated Version : failed attempt ' + attempts + ' of ' + ATTEMPTS_AFTER_ACTIVE + '\n' );
-            setTimeout(function(){
-              getVersionAndNotify( result, attempts + 1 );
-            }, DELAY_AFTER_ACTIVE)
-          }else{
-            slack.error( "Failed to get updated version : "+result.unit );
-            process.stderr.write( 'Get Updated Version : failed after ' + ATTEMPTS_AFTER_ACTIVE + ' attempts\n'+error );
-          }
-        }
-      }
-    );
-  },function(err){
-    process.stderr.write('GetVersion-> error: ' + err.message + '\n\n');
-    slack.fail( err );
-  });
-}
-
-/*
- * recursively unshift each unit in [units] until none left
- */
-function incrementallyUpdateUnits( units ) {
-  if(units.length > 0){
-    var unit = units.shift();
-    // each unit runs 2 commands, stop then start
-    return promiseFromExec(
-      exec('/bin/fleetctl --endpoint '+process.env.FLEETCTL_ENDPOINT+' stop '+unit+' && sleep 10'), unit
-    ).then(function(result){
-      process.stdout.write('Upgrade-> STOPPED unit '+ result.unit +' with exit code: ' + result.message + '\n');
-      return promiseFromExec(
-        exec('/bin/fleetctl --endpoint '+process.env.FLEETCTL_ENDPOINT+' start '+result.unit), result.unit
-      );
-    }).then(function(result){
-      process.stdout.write('Upgrade-> STARTED stopped unit, completed with exit code: ' + result.message + '\n');
-      process.stdout.write('waiting for update: ' + result.message + '\n');
-
-      var start = Date.now();
-      var now = start;
-      var active = false;
-      var checker = setInterval(function(){
-        now = Date.now();
-        if( now - start < INACTIVE_TIMEOUT ){
-          if( !active ){
-            promiseOutputFromExec(
-              exec("/bin/fleetctl --endpoint "+process.env.FLEETCTL_ENDPOINT+" list-units | grep '"+result.unit+"' | awk '{print $3}'"), result.unit
-            ).then(function(statusResult){
-
-              if(statusResult.output === "active"){
-                active = true;
-                clearInterval(checker);
-                incrementallyUpdateUnits(units);
-                setTimeout(function(){
-                  getVersionAndNotify( result, 1 );
-                }, DELAY_AFTER_ACTIVE)
-              }
-            },function(err){
-              process.stderr.write('Upgrade-> error: ' + err.message + '\n\n');
-              slack.fail( err );
-              clearInterval(checker);
-            });
-          }
-        }else{
-          process.stderr.write('Upgrade-> timeout error: unit ' + result.unit + ' never became active\n\n');
-          clearInterval(checker);
-          incrementallyUpdateUnits(units);
-        }
-      }, 1000);
-    },function(err){
-      process.stderr.write('Upgrade-> error: ' + err.message + '\n\n');
-      slack.fail( err );
-      incrementallyUpdateUnits(units);
-    });
-  }
+  return path.replace("/airship/drone/","drone@").replace("/airship/app/","airship@").replace("/airship/nginx/http/","nginx@");
 }
 
 webhook(function cb(json, url) {
@@ -171,14 +33,14 @@ webhook(function cb(json, url) {
       ){
 
         try{
-          var unitsJson = JSON.parse( fs.readFileSync('/srv/units.json') );
+          var unitsJson = JSON.parse( fs.readFileSync(UNITS_CONFIG) );
+          incrementallyUpdateUnits( unitsJson.slice(1).map(etcdPathToFleetUnit) );
+
         }catch(e){
           process.stderr.write(
-            'failed to read and parse /srv/units.json\n'
+            `failed to read and parse ${UNITS_CONFIG}\n`
           );
         }
-
-        incrementallyUpdateUnits( unitsJson.slice(1).map(etcdPathToFleetUnit) );
 
     }else{
 
@@ -251,6 +113,8 @@ var slack = {
           }
         }
       );
+    } else {
+      console.log(`Would send slack notification: ${message} : ${unit} : ${status}`);
     }
   }
 };
