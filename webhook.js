@@ -107,7 +107,7 @@ function getVersion( unit, attempts ) {
     );
   } else { // "api" or "static"
     return new Promise((resolve, reject) => {
-      var unit_url = URL.parse(`http://${unit.ipv4_addr}:${unit.port}/${VERSION_ENDPOINT}`);
+      var unit_url = URL.parse(`http://${unit.ipv4_addr}:${unit.port}${VERSION_ENDPOINT}`);
       request.get({
         url : unit_url,
         json : true,
