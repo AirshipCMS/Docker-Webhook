@@ -116,10 +116,12 @@ function getVersion( unit, attempts ) {
         }
       },
       (error, response, body) => {
-        if (!error && response.statusCode == 200) {
-          resolve(body);
-        }else{
+        if ( error ) {
           reject(error);
+        } else if ( response.statusCode != 200 ) {
+          reject( JSON.stringify(response) );
+        } else {
+          resolve(body);
         }
       });
     });
