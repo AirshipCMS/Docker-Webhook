@@ -21,4 +21,4 @@ echo "[docker-webhook] confd is now monitoring etcd for changes..."
 
 # Start the Nginx service using the generated config
 echo "[docker-webhook] starting webhook listener service..."
-forever -o /var/log/webhook/app.log -e /var/log/webhook/error.log -c "node --harmony-destructuring" /srv
+forever -o /var/log/webhook/access.log -e /var/log/webhook/error.log /srv
