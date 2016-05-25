@@ -1,1 +1,15 @@
-{{ $watchUnits := getenv "ETCD_UNITS" }}[null{{ range gets $watchUnits }},"{{ .Key }}"{{ end }}]
+{{ $watchUnits := getenv "ETCD_UNITS" }}
+[
+  null
+  {{ range gets $watchUnits }}
+  {{ $unitData := json .Value }}
+  ,{
+    "path" : "{{ .Key }}",
+    "unit" : "{{ $unitData.unit }}",
+    "type" : "{{ $unitData.type }}",
+    "host" : "{{ $unitData.host }}",
+    "ipv4_addr" : "{{ $unitData.ipv4_addr }}",
+    "port" : "{{ $unitData.port }}"
+  }
+  {{ end }}
+]

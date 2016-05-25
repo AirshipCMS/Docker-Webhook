@@ -10,6 +10,7 @@ const INACTIVE_TIMEOUT = 600000; // ms, 10 mins
 const DELAY_AFTER_ACTIVE = 30000; // ms, 30 seconds
 const ATTEMPTS_AFTER_ACTIVE = 5; // attempts to ping server, with between DELAY_AFTER_ACTIVE
 const VERSION_ENDPOINT = '/_version';
+const VERSION_FILENAME = 'VERSION.json';
 const {
   TEST = false,
   AUTH_TOKEN,
@@ -19,37 +20,130 @@ const {
   TAG,
   UNITS_CONFIG_PATH = '/srv/units.json',
 } = process.env;
-const FLEETCTL_CMD = `/bin/fleetctl --endpoint ${FLEETCTL_ENDPOINT}`;
+// const FLEETCTL_CMD = `/bin/fleetctl --endpoint ${FLEETCTL_ENDPOINT}`;
+const FLEETCTL_CMD = `/bin/fleetctl`;
 const queue = [];
 let is_updating = false;
 
 function fleetctl( cmd ){
   return exec(
     TEST ?
-      `/bin/echo fleetctl ${cmd}` :
-      `${FLEETCTL_CMD} ${cmd}`
+      `/bin/echo "\n\n===== ${FLEETCTL_CMD} ${cmd} =====\n"` :
+      `/bin/echo "\n\n===== ${FLEETCTL_CMD} ${cmd} =====\n" && ${FLEETCTL_CMD} ${cmd}`
   );
 }
 
-function promiseFromExec(child, unit){
+function promiseFromExec(child){
   return new Promise(function(resolve, reject){
     child.stderr.pipe(process.stderr);
     child.stdout.pipe(process.stdout);
     child.addListener('error', function(err){
-      reject({ message : err.message, unit : unit});
+      reject( err.message );
     });
     child.addListener('exit', function(code,signal){
       if(code === 0){
-        resolve({ message : code, unit : unit});
+        resolve( code );
       }else{
-        reject({ message : code, unit : unit});
+        reject( code );
       }
     });
   });
 }
 
-function etcdPathToFleetUnit(path){
-  return path.replace("/airship/drone/","drone@").replace("/airship/app/","airship@").replace("/airship/nginx/http/","nginx@");
+function promiseOutputFromExec(child){
+  return new Promise(function(resolve, reject){
+    child.stderr.pipe(process.stderr);
+    var data = "";
+    child.stdout.on('data', function(chunk){
+      data += chunk;
+    })
+    child.addListener('error', function(err){
+      reject({ message : err.message, unit : unit});
+    });
+    child.addListener('exit', function(code,signal){
+      data = data.trim();
+      if(code === 0){
+        resolve(data);
+      }else{
+        reject(data);
+      }
+    });
+  });
+}
+
+// function etcdPathToFleetUnit(path){
+//   return path.replace("/airship/drone/","drone@").replace("/airship/app/","airship@").replace("/airship/nginx/http/","nginx@");
+// }
+
+/**
+ * for TEST only
+ */
+function getVersionTEST(){
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      if(Math.floor(Math.random() * 2) == 0){
+        resolve({"API_VERSION_TAG":"v20164131434","VERSION_TAG":"20164121528","VERSION_CODE":"BE0TEST","API_VERSION_CODE":"BE1TEST"});
+      } else {
+        reject("Error: connect ETIMEDOUTEST 10.1.1.214:3892");
+      }
+    }, 900);
+  });
+}
+
+/**
+ * get versions in different ways
+ * if http, (airship || nginx)
+ *   get version from [ipv4_addr]:[port]/_version
+ * if drone
+ *   get version from docker exec [port] cat VERSION.json
+ *   `fleetctl ssh drone@1 docker exec drone_1 cat VERSION.json`
+ */
+function getVersion( unit, attempts ) {
+  if ( TEST ) {
+    return getVersionTEST();
+  } else if ( unit.type === "drone" ) {
+    return promiseOutputFromExec(
+      fleetctl(`ssh ${unit.unit} docker exec ${unit.port} cat ${VERSION_FILENAME}`)
+    );
+  } else { // "api" or "static"
+    return new Promise((resolve, reject) => {
+      var unit_url = URL.parse(`http://${unit.ipv4_addr}:${unit.port}/${VERSION_ENDPOINT}`);
+      request.get({
+        url : unit_url,
+        json : true,
+        headers : {
+          "Content-Type" : "application/json"
+        }
+      },
+      (error, response, body) => {
+        if (!error && response.statusCode == 200) {
+          resolve(body);
+        }else{
+          reject(error);
+        }
+      });
+    });
+  }
+}
+
+/**
+ * format message for slack messaging
+ */
+function reportComplete(unit, body){
+  var fields = [
+    {
+      title : `API Version${ unit.type === "api" ? " [updated]" : "" }`,
+      value : `${body.API_VERSION_TAG} ${body.API_VERSION_CODE}`,
+      short : true
+    },
+    {
+      title : `Admin Version${ unit.type === "static" ? " [updated]" : "" }`,
+      value : `${body.VERSION_TAG} ${body.VERSION_CODE}`,
+      short : true
+    }
+  ];
+  slack.success( unit, fields );
+  process.stdout.write( 'Updated Version : '+JSON.stringify(body)+'\n' );
 }
 
 /**
@@ -67,33 +161,52 @@ function incrementallyUpdateUnits( units ){
 
     // each unit runs 2 commands, stop then start
     return promiseFromExec(
-      fleetctl(`stop ${unit} && sleep 10`), unit
-    ).then(function(result){
-      process.stdout.write('Upgrade-> STOPPED unit '+ result.unit +' with exit code: ' + result.message + '\n');
+      fleetctl(`stop ${unit.unit} && sleep 10`)
+    ).then( code => {
+      process.stdout.write(`Upgrade-> STOPPED unit ${unit.unit} with exit code: ${code}\n`);
       return promiseFromExec(
-        fleetctl(`start ${result.unit}`), result.unit
+        fleetctl(`start ${unit.unit}`)
       );
-    }).then(function(result){
-      process.stdout.write('Upgrade-> STARTED stopped unit, completed with exit code: ' + result.message + '\n');
-      process.stdout.write('waiting for update: ' + result.message + '\n');
+    }).then( code => {
+      process.stdout.write(`Upgrade-> STARTED stopped unit ${unit.unit}, completed with exit code: ${code}\n`);
+      process.stdout.write(`waiting for update...`);
 
+      if(queue.length > 0){
+        process.stdout.write(`Update chain interrupted, ${queue.length} new requests in queue, starting over.\n`);
+        performUpdate();
+      } else {
+        process.stdout.write(`Update chain continuing.\n`);
+        var start = Date.now();
+        var now = start;
+        var active = false;
+        var checker = setInterval(() => {
+          now = Date.now();
+          if( now - start < INACTIVE_TIMEOUT ){
+            if( !active ){
+              getVersion(unit)
+              .then( version => {
+                  active = true;
+                  clearInterval(checker);
+                  reportComplete(unit, version);
+                  unitUpdated(units); // continue
+              }, versionError => {
+                // wait
+                process.stderr.write( `Get Updated Version : ${unit.unit} failed after ${ (now - start) / 1000 }s\n${versionError}\n\n` );
+              });
+            }
+          }else{
+            slack.error( `Upgrade-> timeout error: unit ${unit.unit} never became active\nFailed to get updated version after : ${INACTIVE_TIMEOUT / 1000}s` );
+            process.stderr.write(`Upgrade-> timeout error: unit ${unit.unit} never became active\n\n`);
+            clearInterval(checker);
+            // unitUpdated(units); // don't continue, assume bad update, so leave dead and don't continue
+          }
+        }, 1000);
+      }
 
-
-
-      setTimeout(()=> {
-        if(queue.length > 0){
-          process.stdout.write(`Update chain interrupted, ${queue.length} new requests in queue, starting over.\n`);
-          performUpdate();
-        } else {
-          process.stdout.write(`Update chain continuing.\n`);
-          unitUpdated(units);
-        }
-      }, 1000);
-
-    },function(err){
+    }, err => {
       process.stderr.write('Upgrade-> error: ' + err.message + '\n\n');
-      slack.fail( err );
-      unitUpdated(units);
+      slack.fail( err.message );
+      // unitUpdated(units); // don't continue, assume bad update, so leave dead and don't continue
     });
 
   } else { // done
@@ -129,7 +242,7 @@ function performUpdate(){
 
   try{
     let unitsJson = JSON.parse( fs.readFileSync(UNITS_CONFIG_PATH) );
-    incrementallyUpdateUnits( unitsJson.filter(u => u !== null).map(etcdPathToFleetUnit) );
+    incrementallyUpdateUnits( unitsJson.filter(u => u !== null) );
   }catch(e){
     process.stderr.write(
       `failed to read and parse ${UNITS_CONFIG_PATH}\nDID NOT PERFORM UPDATE!!!\n`
@@ -236,7 +349,7 @@ var slack = {
         }
       );
     } else {
-      console.log(`Would send slack notification: ${message} : ${unit} : ${status}`);
+      console.log(`Would send slack notification: ${message} : ${unit.unit} : ${status}`);
     }
   }
 };

@@ -1,1 +1,35 @@
-[null, "airship@1", "airship@2"]
+[
+  null
+  ,{
+    "path" : "/airship/app/1",
+    "type" : "api",
+    "unit" : "airship@1",
+    "host" : "ip-10-1-1-213.us-west-1.compute.internal",
+    "ipv4_addr": "10.1.1.213",
+    "port": "3891"
+  }
+  ,{
+    "path" : "/airship/app/2",
+    "type" : "api",
+    "unit" : "airship@2",
+    "host" : "ip-10-1-1-214.us-west-1.compute.internal",
+    "ipv4_addr": "10.1.1.214",
+    "port": "3892"
+  }
+  ,{
+    "path" : "/airship/drone/1",
+    "type" : "drone",
+    "unit" : "drone@1",
+    "host" : "ip-10-1-1-213.us-west-1.compute.internal",
+    "ipv4_addr": "10.1.1.213",
+    "port": "drone_1"
+  }
+  ,{
+    "path" : "/airship/drone/2",
+    "type" : "drone",
+    "unit" : "drone@2",
+    "host" : "ip-10-1-1-214.us-west-1.compute.internal",
+    "ipv4_addr": "10.1.1.214",
+    "port": "drone_2"
+  }
+]
