@@ -203,7 +203,7 @@ function incrementallyUpdateUnits( units ){
 
     }, err => {
       process.stderr.write('Upgrade-> error: ' + err.message + '\n\n');
-      slack.fail( err.message );
+      slack.fail( err.message, unit );
       // unitUpdated(units); // don't continue, assume bad update, so leave dead and don't continue
     });
 
@@ -301,8 +301,8 @@ var slack = {
   success : function( unit, fields ){
     slack.notify( slack.status.SUCCESS, unit, null, fields );
   },
-  fail : function( result ){
-    slack.notify( slack.status.FAIL, result.unit );
+  fail : function( result, unit ){
+    slack.notify( slack.status.FAIL, unit );
   },
   error : function( message ){
     slack.notify( slack.status.ERROR, null, message );
@@ -313,7 +313,7 @@ var slack = {
     if( SLACK_NOTIFICATION !== undefined ){
       var color = status === "success" ? "good" : "danger";
       var slackOpts = JSON.parse( SLACK_NOTIFICATION );
-      var fields = [{ title : "Fleet Unit", value : unit, short : false }];
+      var fields = [{ title : "Fleet Unit", value : unit.unit, short : false }];
       if(appendFields){
         fields = fields.concat(appendFields);
       }
@@ -327,10 +327,13 @@ var slack = {
               attachments :
                 [
                 {
-                  fallback : message || "Deployment to " + unit + " : " + status,
+                  fallback : message || `Deployment to ${unit.unit} : ${status}`,
                   color : color,
-                  title : slackOpts.PRODUCT + " [" + slackOpts.RELEASE_CHANNEL + "] deployment " + status,
-                  title_link : "https://hub.docker.com/r" + REPO_NAME + "/builds/",
+                  title : `${slackOpts.PRODUCT} [${slackOpts.RELEASE_CHANNEL}] deployment ${status}`,
+                  title_link : status === "success" ?
+                    slackOpts.RELEASE_CHANNEL === "production" ? "https://airshipcms.io/_version" :
+                    "http://airshipcms-alpha.io/_version" :
+                    `https://hub.docker.com/${REPO_NAME}/builds/`,
                   text : message,
                   fields : fields
                 }
@@ -338,7 +341,7 @@ var slack = {
             })
           }
         },
-        function (error, response, body) {
+        (error, response, body) => {
           if (!error && response.statusCode == 200) {
             process.stdout.write( 'Slack Notification : success\n' );
           }else{
