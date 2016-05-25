@@ -1,4 +1,4 @@
-FROM mhart/alpine-node:0.12
+FROM mhart/alpine-node:6.2.0
 
 MAINTAINER Jon Borgonia "jon@gomagames.com"
 
