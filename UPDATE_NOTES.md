@@ -19,7 +19,7 @@ must report units to 2 places now,
     /airship/rolling_updates/api
     /airship/rolling_updates/static
 
-      etcdctl set /airship/app/%i \'{"unit": "%N", "type": "api", "host": "%H", "ipv4_addr": "${COREOS_PRIVATE_IPV4}", "port": 389%i}\' --ttl 30; \
+      etcdctl set /airship/app/%i \'{"unit": "%N", "type": "api", "version" : {version json}, "host": "%H", "ipv4_addr": "${COREOS_PRIVATE_IPV4}", "port": 389%i}\' --ttl 30; \
 
 where:
   type is one of ["api", "nginx", "static"]
