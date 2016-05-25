@@ -13,7 +13,7 @@ ADD package.json /srv/package.json
 
 # forward request and error logs to docker log collector
 RUN mkdir -p /var/log/webhook/
-RUN ln -sf /dev/stdout /var/log/webhook/access.log
+# RUN ln -sf /dev/stdout /var/log/webhook/access.log
 RUN ln -sf /dev/stderr /var/log/webhook/error.log
 
 RUN cd /srv && npm install
