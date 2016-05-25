@@ -112,7 +112,8 @@ function getVersion( unit, attempts ) {
         url : unit_url,
         json : true,
         headers : {
-          "Content-Type" : "application/json"
+          "Content-Type" : "application/json",
+          "Host" : "localhost"
         }
       },
       (error, response, body) => {
