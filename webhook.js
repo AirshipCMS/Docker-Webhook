@@ -193,7 +193,7 @@ function incrementallyUpdateUnits( units ){
               });
             }
           }else{
-            slack.error( `Upgrade-> timeout error: unit ${unit.unit} never became active\nFailed to get updated version after : ${INACTIVE_TIMEOUT / 1000}s` );
+            slack.error( `Upgrade-> timeout error: unit ${unit.unit} never became active\nFailed to get updated version after : ${INACTIVE_TIMEOUT / 1000}s`, unit );
             process.stderr.write(`Upgrade-> timeout error: unit ${unit.unit} never became active\n\n`);
             clearInterval(checker);
             // unitUpdated(units); // don't continue, assume bad update, so leave dead and don't continue
@@ -304,8 +304,8 @@ var slack = {
   fail : function( result, unit ){
     slack.notify( slack.status.FAIL, unit );
   },
-  error : function( message ){
-    slack.notify( slack.status.ERROR, null, message );
+  error : function( message, unit ){
+    slack.notify( slack.status.ERROR, unit, message );
     return message;
   },
   notify : function( status, unit, message, appendFields ){
